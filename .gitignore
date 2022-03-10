@@ -18,3 +18,5 @@ unittests.xml
 
 # Ignore vscode settings and debug-options
 .vscode/
+
+nordicsemi/dfu/test.py
