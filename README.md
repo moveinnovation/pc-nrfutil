@@ -1,12 +1,13 @@
 # About this fork
 
-This is a modified version of Nordic's nrfutil. This fork introduces support for OTA flashing bluetooth devices using regular a bluetooth dongle (Linux only).
+This is a fork of [`anszom`'s fork](https://github.com/anszom/pc-nrfutil) of
+Nordic's [`nrfutil`](https://github.com/NordicSemiconductor/pc-nrfutil). Whereas
+`anszom`'s fork adds support for OTA DFU via. a native bluetooth device using
+[`BLE_GATT`](https://github.com/ukBaz/BLE_GATT), this fork attempts to do the
+same using `bluepy`.
 
-Usage:
 
-    dfu ble-native -pkg update.zip  -a 11:22:33:44:55:66
-
-Below is a copy of original README
+Below is a copy of Nordic's original README.
 
 # nRF Util
 
@@ -14,13 +15,16 @@ Below is a copy of original README
 [![License](https://img.shields.io/pypi/l/nrfutil.svg)](https://pypi.python.org/pypi/nrfutil)
 [![Build Status](https://dev.azure.com/NordicSemiconductor/Wayland/_apis/build/status/pc-nrfutil?branchName=master)](https://dev.azure.com/NordicSemiconductor/Wayland/_build?definitionId=30)
 
-nRF Util is a Python package and command-line utility that supports Device Firmware Updates (DFU) and cryptographic functionality.
+nRF Util is a Python package and command-line utility that supports Device
+Firmware Updates (DFU) and cryptographic functionality.
 
 ![screenshot](screenshot.gif)
 
 ## Documentation
 
-See the [InfoCenter](https://infocenter.nordicsemi.com/topic/ug_nrfutil/UG/nrfutil/nrfutil_intro.html) pages for information on how to install and use nRF Util.
+See the
+[InfoCenter](https://infocenter.nordicsemi.com/topic/ug_nrfutil/UG/nrfutil/nrfutil_intro.html)
+pages for information on how to install and use nRF Util.
 
 ## Feedback
 
@@ -30,9 +34,13 @@ Please report issues on the [DevZone](https://devzone.nordicsemi.com) portal.
 
 Feel free to propose changes by creating a pull request.
 
-If you plan to make any non-trivial changes, please start out small and ask seek an agreement before putting too much work in it. A pull request can be declined if it does not fit well within the current product roadmap.
+If you plan to make any non-trivial changes, please start out small and ask seek
+an agreement before putting too much work in it. A pull request can be declined
+if it does not fit well within the current product roadmap.
 
-In order to accept your pull request, we need you to sign our Contributor License Agreement (CLA). You will see instructions for doing this after having submitted your first pull request.
+In order to accept your pull request, we need you to sign our Contributor
+License Agreement (CLA). You will see instructions for doing this after having
+submitted your first pull request.
 
 ## License
 
