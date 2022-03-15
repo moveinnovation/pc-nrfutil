@@ -7,6 +7,42 @@ Nordic's [`nrfutil`](https://github.com/NordicSemiconductor/pc-nrfutil). Whereas
 same using `bluepy`.
 
 
+## Installation
+
+```
+$ [sudo] python setup.py install
+```
+
+## Usage
+
+The `bluepy` transport backend has not yet :been added to the `nrfutil` CLI
+tool. However, after installation, the functionality can be accessed via the
+python package:
+
+```
+
+import nordicsemi.dfu.dfu_mode_jumper as dfu_mode_jumper
+import nordicsemi.dfu.dfu as dfu
+
+ZIP_FILE_PATH = "foo-dfu_package.zip"
+ADDR          = "XX:XX:XX:XX:XX:XX"
+
+jumper = dfu_mode_jumper.DfuModeJumper(ADDR)
+my_transport = jumper.IntoDfuTransportBluepy()
+my_dfu = dfu.Dfu(ZIP_FILE_PATH, my_transport, 0)
+
+jumper.jump_to_dfu_mode()
+
+# at this point the device with address ADDR should be disconnected.
+
+my_dfu.dfu_send_images()
+```
+
+For the time being, the jumping to DFU mode is its own module separate from the
+actual DFU, to better be able to test against `anszom`'s fork, which assumes
+that the device is already in DFU mode.
+
+
 Below is a copy of Nordic's original README.
 
 # nRF Util
