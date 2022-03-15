@@ -37,7 +37,7 @@
 #
 
 # Python standard library
-#  import time
+import time
 #  import wrapt
 #  import queue
 import struct
@@ -47,7 +47,7 @@ import binascii
 from nordicsemi.dfu.dfu_transport   import DfuTransport, DfuEvent
 from pc_ble_driver_py.exceptions    import NordicSemiException, IllegalStateException
 import bluepy.btle as btle
-logger = logging.getLogger(__name__)
+#  logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
 
@@ -61,31 +61,24 @@ class MyDelegate(btle.DefaultDelegate):
 
     # TODO: can we assume that handles are static for a given uuid and
     #       device? if so then these need not be passed here.
-    def __init__(self, cp_handle, dp_handle):
+    def __init__(self, *handles):#foohandle, barhandle):
         btle.DefaultDelegate.__init__(self)
 
-        self.cp_handle = cp_handle
-        self.dp_handle = dp_handle
-
-        self.last_cp_notification = None
-        self.last_dp_notification = None
+        self.notifications = dict.fromkeys(handles)#{}
 
     def handleNotification(self, cHandle, data):
-        logger.info("Caught notification.\n"
+        logging.info("Caught notification.\n"
                      f">> handle: {cHandle}\n>> data:   {data}")
-
-        if cHandle == self.cp_handle:
-            self.last_cp_notification = data
-        elif cHandle == self.dp_handle:
-            self.last_dp_notification = data
+        if cHandle in self.notifications:
+            self.notifications[cHandle] = data
 
 
-    def getLastCPNotification(self):
-        tmp = self.last_cp_notification
-        self.last_cp_notification = None
-        logger.info(f"Got last CP notification: {tmp}"
-                     if tmp else "No new CP notification")
-        return tmp
+    def getLastNotification(self, cHandle):
+        if cHandle in self.notifications:
+            tmp = self.notifications[cHandle]
+            self.notifications[cHandle] = None
+            return tmp
+        return None
 
 class MyDfuDevice(btle.Peripheral):
 
@@ -100,48 +93,44 @@ class MyDfuDevice(btle.Peripheral):
         # (ie. notification handler).
         self.CP_char = self.getCharacteristics(uuid = MyDfuDevice.CP)[0]
         self.DP_char = self.getCharacteristics(uuid = MyDfuDevice.DP)[0]
-        logger.info("Got CP and DP characteristics.")
+        logging.info("Got CP and DP characteristics.")
 
         self.CP_handle = self.CP_char.getHandle()
         self.DP_handle = self.DP_char.getHandle()
 
-        res1 = self.writeCharacteristic(self.CP_handle, b"\x01\x00", withResponse = True)
-        res2 = self.writeCharacteristic(self.DP_handle, b"\x01\x00", withResponse = True)
-        logger.info("Subscribed to notifications for CP and DP handles with "
-                     f"responses:\nres1: {res1}\nres2: {res2}")
+        self.withDelegate(MyDelegate(self.CP_handle, self.DP_handle))
+        logging.info("Set up delegate.")
 
-        #  self.delegate = MyDelegate(self.CP_handle, self.DP_handle)
-        #  self.setDelegate(MyDelegate(self.CP_handle, self.DP_handle))
-        logger.info("Set up delegate.")
+        res1 = self.writeCharacteristic(self.CP_handle + 1, b"\x01\x00")#, withResponse = True)
+        res2 = self.writeCharacteristic(self.DP_handle + 1, b"\x01\x00")#, withResponse = True)
+        logging.info("Subscribed to notifications for CP and DP handles with "
+                     f"responses: {res1}, {res2}")
+
+        time.sleep(1) # TODO: necessary?
 
 
     def poll_cp_notification(self):
         MAX_RETRIES = 10
         for i in range(MAX_RETRIES):
-            logger.info("Attempting to poll CP notification. "
+
+            if self.waitForNotifications(2): # TODO: how long timeout?
+                tmp = self.delegate.getLastNotification(self.CP_handle)
+                logging.info(f"Got CP notification from delegate: {tmp}")
+                return tmp
+            logging.info("Failed to poll CP notification. "
                          f"{MAX_RETRIES - i - 1} attempts left.")
 
-            if self.waitForNotifications(4): # TODO: how long timeout?
-                #  tmp = self.delegate.getLastCPNotification()
-                tmp = "DUMMY"
-                logger.info(f"Polled CP notification: {tmp}")
-                return tmp
-
-        logger.info(f"Failed to get last CP notification!")
-        return None
+        logging.info(f"Timeout getting last CP notification!")
+        raise Exception("Timeout getting last CP notification")
 
 
     def write_control_point(self, data):
-        res = self.writeCharacteristic(self.CP_handle,
-                                       bytes(data),
-                                       withResponse = True)
-        logger.info(f"Wrote control point: {data}, with response: {res}")
+        res = self.writeCharacteristic(self.CP_handle, bytes(data), withResponse = True)
+        logging.info(f"Wrote control point: {data}, with response: {res}")
 
     def write_data_point(self, data):
-        res = self.writeCharacteristic(self.DP_handle,
-                                       bytes(data),
-                                       withResponse = True)
-        logger.info(f"Writing data point: {data}, with response: {res}")
+        res = self.writeCharacteristic(self.DP_handle, bytes(data), withResponse = True)
+        logging.info(f"Wrote data point: {data}, with response: {res}")
 
 
 class DfuTransportBleBluepy(DfuTransport):
@@ -164,9 +153,6 @@ class DfuTransportBleBluepy(DfuTransport):
         super().open()
 
         self.device = MyDfuDevice(self.target_device_addr)
-        #  self.device.connect()
-        #  self.device.setup()
-
         self.__set_prn()
 
     def close(self):
@@ -268,7 +254,7 @@ class DfuTransportBleBluepy(DfuTransport):
             self._send_event(event_type=DfuEvent.PROGRESS_EVENT, progress=len(data))
 
     def __set_prn(self):
-        logger.debug("BLE: Set Packet Receipt Notification {}".format(self.prn))
+        logging.debug("BLE: Set Packet Receipt Notification {}".format(self.prn))
         self.device.write_control_point([DfuTransportBleBluepy.OP_CODE['SetPRN']] + list(struct.pack('<H', self.prn)))
         self.__get_response(DfuTransportBleBluepy.OP_CODE['SetPRN'])
 
@@ -301,12 +287,12 @@ class DfuTransportBleBluepy(DfuTransport):
         return self.__select_object(0x02)
 
     def __select_object(self, object_type):
-        logger.debug("BLE: Selecting Object: type:{}".format(object_type))
+        logging.debug("BLE: Selecting Object: type:{}".format(object_type))
         self.device.write_control_point([DfuTransportBleBluepy.OP_CODE['ReadObject'], object_type])
         response = self.__get_response(DfuTransportBleBluepy.OP_CODE['ReadObject'])
 
         (max_size, offset, crc)= struct.unpack('<III', bytearray(response))
-        logger.debug("BLE: Object selected: max_size:{} offset:{} crc:{}".format(max_size, offset, crc))
+        logging.debug("BLE: Object selected: max_size:{} offset:{} crc:{}".format(max_size, offset, crc))
         return {'max_size': max_size, 'offset': offset, 'crc': crc}
 
     def __get_checksum_response(self):
@@ -316,7 +302,7 @@ class DfuTransportBleBluepy(DfuTransport):
         return {'offset': offset, 'crc': crc}
 
     def __stream_data(self, data, crc=0, offset=0):
-        logger.debug("BLE: Streaming Data: len:{0} offset:{1} crc:0x{2:08X}".format(len(data), offset, crc))
+        logging.debug("BLE: Streaming Data: len:{0} offset:{1} crc:0x{2:08X}".format(len(data), offset, crc))
         def validate_crc():
             if (crc != response['crc']):
                 raise ValidationException('Failed CRC validation.\n'\
