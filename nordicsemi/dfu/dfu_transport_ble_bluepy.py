@@ -38,8 +38,6 @@
 
 # Python standard library
 import time
-#  import wrapt
-#  import queue
 import struct
 import logging
 import binascii
@@ -57,21 +55,19 @@ class ValidationException(NordicSemiException):
     """
     pass
 
-class MyDelegate(btle.DefaultDelegate):
+class DfuNotificationDelegate(btle.DefaultDelegate):
 
     # TODO: can we assume that handles are static for a given uuid and
     #       device? if so then these need not be passed here.
-    def __init__(self, *handles):#foohandle, barhandle):
+    def __init__(self, handles):
         btle.DefaultDelegate.__init__(self)
-
-        self.notifications = dict.fromkeys(handles)#{}
+        self.notifications = dict.fromkeys(handles)
 
     def handleNotification(self, cHandle, data):
         logging.info("Caught notification.\n"
                      f">> handle: {cHandle}\n>> data:   {data}")
         if cHandle in self.notifications:
             self.notifications[cHandle] = data
-
 
     def getLastNotification(self, cHandle):
         if cHandle in self.notifications:
@@ -80,7 +76,7 @@ class MyDelegate(btle.DefaultDelegate):
             return tmp
         return None
 
-class MyDfuDevice(btle.Peripheral):
+class DfuDevice(btle.Peripheral):
 
     CP = '8ec90001-f315-4f60-9fb8-838830daea50'
     DP = '8ec90002-f315-4f60-9fb8-838830daea50'
@@ -89,25 +85,21 @@ class MyDfuDevice(btle.Peripheral):
         super().__init__(address, addrType)
         self.packet_size = 16
 
-        # get characteristics and their respective handles; set up delegate
-        # (ie. notification handler).
-        self.CP_char = self.getCharacteristics(uuid = MyDfuDevice.CP)[0]
-        self.DP_char = self.getCharacteristics(uuid = MyDfuDevice.DP)[0]
-        logging.info("Got CP and DP characteristics.")
+        # get CP and DP characteristic handles.
+        self.CP_handle = self.getCharacteristics(uuid = DfuDevice.CP)[0].getHandle()
+        self.DP_handle = self.getCharacteristics(uuid = DfuDevice.DP)[0].getHandle()
+        logging.info("Got CP and DP handles.")
 
-        self.CP_handle = self.CP_char.getHandle()
-        self.DP_handle = self.DP_char.getHandle()
+        # setup delegate and subscribe to CP and DP handles.
+        # TODO: find out why the code breaks when we don't subscribe
+        #       to DP notifications (even though we never use them).
+        self.withDelegate(DfuNotificationDelegate([self.CP_handle, self.DP_handle]))
 
-        self.withDelegate(MyDelegate(self.CP_handle, self.DP_handle))
-        logging.info("Set up delegate.")
-
-        res1 = self.writeCharacteristic(self.CP_handle + 1, b"\x01\x00")#, withResponse = True)
-        res2 = self.writeCharacteristic(self.DP_handle + 1, b"\x01\x00")#, withResponse = True)
-        logging.info("Subscribed to notifications for CP and DP handles with "
-                     f"responses: {res1}, {res2}")
+        _ = self.writeCharacteristic(self.CP_handle + 1, b"\x01\x00")
+        _ = self.writeCharacteristic(self.DP_handle + 1, b"\x01\x00")
+        logging.info("Setup delegate and subscribed to CP and DP notifications.")
 
         time.sleep(1) # TODO: necessary?
-
 
     def poll_cp_notification(self):
         MAX_RETRIES = 10
@@ -126,12 +118,16 @@ class MyDfuDevice(btle.Peripheral):
 
     def write_control_point(self, data):
         res = self.writeCharacteristic(self.CP_handle, bytes(data), withResponse = True)
-        logging.info(f"Wrote control point: {data}, with response: {res}")
+        logging.info(f"Wrote control point: {data} -- with response: {res}")
 
     def write_data_point(self, data):
-        res = self.writeCharacteristic(self.DP_handle, bytes(data), withResponse = True)
-        logging.info(f"Wrote data point: {data}, with response: {res}")
+        _ = self.writeCharacteristic(self.DP_handle, bytes(data))
+        logging.info(f"Wrote data point: {data}")
 
+    def cleanup(self):
+        # TODO: should we call self.disconnect here or leave it to Peripheral.__del__()?
+        # self.disconnect()
+        pass
 
 class DfuTransportBleBluepy(DfuTransport):
 
@@ -151,8 +147,7 @@ class DfuTransportBleBluepy(DfuTransport):
             raise IllegalStateException('DFU Adapter is already open')
 
         super().open()
-
-        self.device = MyDfuDevice(self.target_device_addr)
+        self.device = DfuDevice(self.target_device_addr)
         self.__set_prn()
 
     def close(self):
