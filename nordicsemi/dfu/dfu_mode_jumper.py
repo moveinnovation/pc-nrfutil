@@ -2,7 +2,6 @@ import nordicsemi.dfu.dfu_transport_ble_native as dfu_transport_ble_native
 import nordicsemi.dfu.dfu_transport_ble_bluepy as dfu_transport_ble_bluepy
 import nordicsemi.dfu.dfu as dfu
 
-from bluepy.btle import *
 from bluepy.btle import Peripheral, ADDR_TYPE_RANDOM
 import logging
 
@@ -34,15 +33,12 @@ class DfuModeJumper():
 
         cccd_handle = self.buttonless_char_handle + 1
         res = self.p.writeCharacteristic(cccd_handle, b"\x02\x00", withResponse = True)
-        logging.info("Subscribed to indications for buttonless characteristic "
-                     f"with response: {res}.")
+        logging.info("Subscribed to indications for buttonless characteristic.")
 
     def jump_to_dfu_mode(self):
-        res = self.p.writeCharacteristic(self.buttonless_char_handle,
-                                         b"\x01",
-                                         withResponse = True)
-        logging.info("Successfully wrote to buttonless characteristic with"
-                     f" response: {res}")
+        _ = self.p.writeCharacteristic(self.buttonless_char_handle, b"\x01", withResponse = True)
+        logging.info("Wrote to buttonless characteristic and initiated jump "
+                     "to DFU mode. Device should disconnect momentarily.")
 
         time.sleep(1) # TODO: do we need to enforce a sleep here? if so, is
                       #       there an official recommendation on how long?
