@@ -3,27 +3,25 @@ import nordicsemi.dfu.dfu_transport_ble_bluepy as dfu_transport_ble_bluepy
 import nordicsemi.dfu.dfu as dfu
 
 from bluepy.btle import Peripheral, ADDR_TYPE_RANDOM
-import logging
-import time
 
-LOG_LEVEL  = logging.INFO
-LOG_FORMAT = "%(asctime)s %(levelname)-8s %(message)s"
-logging.basicConfig(level = LOG_LEVEL, format = LOG_FORMAT)
+import time
+import logging
+logger = logging.getLogger(__name__)
 
 class DfuModeJumper():
     BUTTONLESS_UUID = "8ec90003-f315-4f60-9fb8-838830daea50"
 
     def from_addr(addr):
         p = Peripheral(addr, addrType = ADDR_TYPE_RANDOM)
-        logging.info("New peripheral opened.")
+        logger.info("New peripheral opened.")
         return DfuModeJumper(p)
 
     def __init__(self, p):
         if isinstance(p, str):
             p = Peripheral(p, addrType = ADDR_TYPE_RANDOM)
-            logging.info("New peripheral opened.")
+            logger.info("New peripheral opened.")
         elif isinstance(p, Peripheral):
-            logging.info("Using existing peripheral.")
+            logger.info("Using existing peripheral.")
         else:
             raise ValueError("DfuModeJumper.__init__(): expected str (device MAC "
                              f"addr) or Peripheral, but got {type(p).__name__}.")
@@ -31,19 +29,22 @@ class DfuModeJumper():
 
         self.buttonless_char        = self.p.getCharacteristics(uuid = DfuModeJumper.BUTTONLESS_UUID)[0]
         self.buttonless_char_handle = self.buttonless_char.getHandle()
-        logging.info("Got buttonless characteristic and handle.")
+        logger.info("Got buttonless characteristic and handle.")
 
         cccd_handle = self.buttonless_char_handle + 1
         res = self.p.writeCharacteristic(cccd_handle, b"\x02\x00", withResponse = True)
-        logging.info("Subscribed to indications for buttonless characteristic.")
+        logger.info("Subscribed to indications for buttonless characteristic.")
 
     def jump_to_dfu_mode(self):
         _ = self.p.writeCharacteristic(self.buttonless_char_handle, b"\x01", withResponse = True)
-        logging.info("Wrote to buttonless characteristic and initiated jump "
+        logger.info("Wrote to buttonless characteristic and initiated jump "
                      "to DFU mode. Device should disconnect momentarily.")
 
         time.sleep(1) # TODO: do we need to enforce a sleep here? if so, is
                       #       there an official recommendation on how long?
+
+        try: p.disconnect()
+        except: pass
 
     def get_bootloader_addr(self):
         # given a mac address string; increment the address and construct new 

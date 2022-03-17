@@ -45,7 +45,7 @@ import binascii
 from nordicsemi.dfu.dfu_transport   import DfuTransport, DfuEvent
 from pc_ble_driver_py.exceptions    import NordicSemiException, IllegalStateException
 import bluepy.btle as btle
-#  logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
 
@@ -64,7 +64,7 @@ class DfuNotificationDelegate(btle.DefaultDelegate):
         self.notifications = dict.fromkeys(handles)
 
     def handleNotification(self, cHandle, data):
-        logging.info("Caught notification.\n"
+        logger.info("Caught notification.\n"
                      f">> handle: {cHandle}\n>> data:   {data}")
         if cHandle in self.notifications:
             self.notifications[cHandle] = data
@@ -88,7 +88,7 @@ class DfuDevice(btle.Peripheral):
         # get CP and DP characteristic handles.
         self.CP_handle = self.getCharacteristics(uuid = DfuDevice.CP)[0].getHandle()
         self.DP_handle = self.getCharacteristics(uuid = DfuDevice.DP)[0].getHandle()
-        logging.info("Got CP and DP handles.")
+        logger.info("Got CP and DP handles.")
 
         # setup delegate and subscribe to CP and DP handles.
         # TODO: find out why the code breaks when we don't subscribe
@@ -97,7 +97,7 @@ class DfuDevice(btle.Peripheral):
 
         _ = self.writeCharacteristic(self.CP_handle + 1, b"\x01\x00")
         _ = self.writeCharacteristic(self.DP_handle + 1, b"\x01\x00")
-        logging.info("Setup delegate and subscribed to CP and DP notifications.")
+        logger.info("Setup delegate and subscribed to CP and DP notifications.")
 
         time.sleep(1) # TODO: necessary?
 
@@ -107,23 +107,23 @@ class DfuDevice(btle.Peripheral):
 
             if self.waitForNotifications(2): # TODO: how long timeout?
                 tmp = self.delegate.getLastNotification(self.CP_handle)
-                logging.info(f"Got CP notification from delegate: {tmp}")
+                logger.info(f"Got CP notification from delegate: {tmp}")
                 return tmp
-            logging.info("Failed to poll CP notification. "
+            logger.info("Failed to poll CP notification. "
                          f"{MAX_RETRIES - i - 1} attempts left.")
 
-        logging.info(f"Timeout getting last CP notification!")
+        logger.info(f"Timeout getting last CP notification!")
         raise btle.BTLEException("Timeout getting control point notification from "
                                  "bootloader during DFU.")
 
 
     def write_control_point(self, data):
         res = self.writeCharacteristic(self.CP_handle, bytes(data), withResponse = True)
-        logging.info(f"Wrote control point: {data} -- with response: {res}")
+        logger.info(f"Wrote control point: {data} -- with response: {res}")
 
     def write_data_point(self, data):
         _ = self.writeCharacteristic(self.DP_handle, bytes(data))
-        logging.info(f"Wrote data point: {data}")
+        logger.info(f"Wrote data point: {data}")
 
     def cleanup(self):
         # TODO: should we call self.disconnect here or leave it to Peripheral.__del__()?
@@ -250,7 +250,7 @@ class DfuTransportBleBluepy(DfuTransport):
             self._send_event(event_type=DfuEvent.PROGRESS_EVENT, progress=len(data))
 
     def __set_prn(self):
-        logging.debug("BLE: Set Packet Receipt Notification {}".format(self.prn))
+        logger.debug("BLE: Set Packet Receipt Notification {}".format(self.prn))
         self.device.write_control_point([DfuTransportBleBluepy.OP_CODE['SetPRN']] + list(struct.pack('<H', self.prn)))
         self.__get_response(DfuTransportBleBluepy.OP_CODE['SetPRN'])
 
@@ -283,12 +283,12 @@ class DfuTransportBleBluepy(DfuTransport):
         return self.__select_object(0x02)
 
     def __select_object(self, object_type):
-        logging.debug("BLE: Selecting Object: type:{}".format(object_type))
+        logger.debug("BLE: Selecting Object: type:{}".format(object_type))
         self.device.write_control_point([DfuTransportBleBluepy.OP_CODE['ReadObject'], object_type])
         response = self.__get_response(DfuTransportBleBluepy.OP_CODE['ReadObject'])
 
         (max_size, offset, crc)= struct.unpack('<III', bytearray(response))
-        logging.debug("BLE: Object selected: max_size:{} offset:{} crc:{}".format(max_size, offset, crc))
+        logger.debug("BLE: Object selected: max_size:{} offset:{} crc:{}".format(max_size, offset, crc))
         return {'max_size': max_size, 'offset': offset, 'crc': crc}
 
     def __get_checksum_response(self):
@@ -298,7 +298,7 @@ class DfuTransportBleBluepy(DfuTransport):
         return {'offset': offset, 'crc': crc}
 
     def __stream_data(self, data, crc=0, offset=0):
-        logging.debug("BLE: Streaming Data: len:{0} offset:{1} crc:0x{2:08X}".format(len(data), offset, crc))
+        logger.debug("BLE: Streaming Data: len:{0} offset:{1} crc:0x{2:08X}".format(len(data), offset, crc))
         def validate_crc():
             if (crc != response['crc']):
                 raise ValidationException('Failed CRC validation.\n'\
