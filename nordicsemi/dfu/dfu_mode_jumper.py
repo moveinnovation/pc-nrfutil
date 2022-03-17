@@ -4,6 +4,7 @@ import nordicsemi.dfu.dfu as dfu
 
 from bluepy.btle import Peripheral, ADDR_TYPE_RANDOM
 import logging
+import time
 
 LOG_LEVEL  = logging.INFO
 LOG_FORMAT = "%(asctime)s %(levelname)-8s %(message)s"
@@ -21,10 +22,11 @@ class DfuModeJumper():
         if isinstance(p, str):
             p = Peripheral(p, addrType = ADDR_TYPE_RANDOM)
             logging.info("New peripheral opened.")
-
-        elif not isinstance(p, Peripheral):
-            raise ValueError("DfuModeJumper.__init__(): expected str or "
-                             f"Peripheral, but got {type(p).__name__}.")
+        elif isinstance(p, Peripheral):
+            logging.info("Using existing peripheral.")
+        else:
+            raise ValueError("DfuModeJumper.__init__(): expected str (device MAC "
+                             f"addr) or Peripheral, but got {type(p).__name__}.")
         self.p = p
 
         self.buttonless_char        = self.p.getCharacteristics(uuid = DfuModeJumper.BUTTONLESS_UUID)[0]

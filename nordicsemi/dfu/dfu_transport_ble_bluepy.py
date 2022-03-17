@@ -113,7 +113,8 @@ class DfuDevice(btle.Peripheral):
                          f"{MAX_RETRIES - i - 1} attempts left.")
 
         logging.info(f"Timeout getting last CP notification!")
-        raise Exception("Timeout getting last CP notification")
+        raise btle.BTLEException("Timeout getting control point notification from "
+                                 "bootloader during DFU.")
 
 
     def write_control_point(self, data):
