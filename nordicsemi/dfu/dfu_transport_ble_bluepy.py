@@ -44,7 +44,7 @@ import binascii
 
 from nordicsemi.dfu.dfu_transport   import DfuTransport, DfuEvent
 from pc_ble_driver_py.exceptions    import NordicSemiException, IllegalStateException
-import bluepy.btle as btle
+from bluepy import btle
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
@@ -64,8 +64,6 @@ class DfuNotificationDelegate(btle.DefaultDelegate):
         self.notifications = dict.fromkeys(handles)
 
     def handleNotification(self, cHandle, data):
-        logger.info("Caught notification.\n"
-                     f">> handle: {cHandle}\n>> data:   {data}")
         if cHandle in self.notifications:
             self.notifications[cHandle] = data
 
@@ -88,7 +86,7 @@ class DfuDevice(btle.Peripheral):
         # get CP and DP characteristic handles.
         self.CP_handle = self.getCharacteristics(uuid = DfuDevice.CP)[0].getHandle()
         self.DP_handle = self.getCharacteristics(uuid = DfuDevice.DP)[0].getHandle()
-        logger.info("Got CP and DP handles.")
+        logger.debug("Got CP and DP handles.")
 
         # setup delegate and subscribe to CP and DP handles.
         # TODO: find out why the code breaks when we don't subscribe
@@ -97,7 +95,7 @@ class DfuDevice(btle.Peripheral):
 
         _ = self.writeCharacteristic(self.CP_handle + 1, b"\x01\x00")
         _ = self.writeCharacteristic(self.DP_handle + 1, b"\x01\x00")
-        logger.info("Setup delegate and subscribed to CP and DP notifications.")
+        logger.debug("Setup delegate and subscribed to CP and DP notifications.")
 
         time.sleep(1) # TODO: necessary?
 
@@ -107,10 +105,10 @@ class DfuDevice(btle.Peripheral):
 
             if self.waitForNotifications(2): # TODO: how long timeout?
                 tmp = self.delegate.getLastNotification(self.CP_handle)
-                logger.info(f"Got CP notification from delegate: {tmp}")
+                logger.debug(f"Got CP notification from delegate: {tmp}")
                 return tmp
             logger.info("Failed to poll CP notification. "
-                         f"{MAX_RETRIES - i - 1} attempts left.")
+                        f"{MAX_RETRIES - i - 1} attempts left.")
 
         logger.info(f"Timeout getting last CP notification!")
         raise btle.BTLEException("Timeout getting control point notification from "
@@ -119,11 +117,11 @@ class DfuDevice(btle.Peripheral):
 
     def write_control_point(self, data):
         res = self.writeCharacteristic(self.CP_handle, bytes(data), withResponse = True)
-        logger.info(f"Wrote control point: {data} -- with response: {res}")
+        logger.debug(f"Wrote control point: {data} -- with response: {res}")
 
     def write_data_point(self, data):
         _ = self.writeCharacteristic(self.DP_handle, bytes(data))
-        logger.info(f"Wrote data point: {data}")
+        logger.debug(f"Wrote data point: {data}")
 
     def cleanup(self):
         # TODO: should we call self.disconnect here or leave it to Peripheral.__del__()?
